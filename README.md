@@ -1,5 +1,7 @@
 # Wavelog HAMLib Gateway
 
+![Main Screen](./.assets/settingscreen.png)
+
 A modern gateway application that connects **WSJT-X**, **Hamlib**, and other amateur-radio applications to **WaveLog** for seamless CAT control, real-time status updates, and automatic QSO logging.
 
 This project is **based on** and **inspired by** the excellent upstream project **WaveLogGate by DJ7NT**, but rebuilt and redesigned with a **100% Hamlib-only approach**, removing all FLRig code and adding new features such as automatic Hamlib installation and multi-station support.
@@ -98,6 +100,8 @@ All other core WaveLogGate features—such as ADIF intake, WebSocket output, HTT
 
 ## 🛠 Configuration
 
+![Settings](./.assets/settingscreen.png)
+
 ### 1. WaveLog Settings
 
 Enter:
@@ -125,6 +129,8 @@ Choose:
 * External PTT Serial Port Pin
 
 * Auto-Start Hamlib (this autostarts rigctld when the station is active)
+
+**Note**:Hamlib Start/Stop buttons are only available on the **active** station
 
 ### 3. Save Station & go Back
 
