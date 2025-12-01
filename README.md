@@ -1,6 +1,6 @@
 # Wavelog HAMLib Gateway
 
-![Main Screen](./.assets/settingscreen.png)
+![Main Screen](./.assets/mainscreen.png)
 
 A modern gateway application that connects **WSJT-X**, **Hamlib**, and other amateur-radio applications to **WaveLog** for seamless CAT control, real-time status updates, and automatic QSO logging.
 
