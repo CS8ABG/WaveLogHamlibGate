@@ -1,11 +1,11 @@
 {
-  "name": "wavelog-gate-by-dj7nt",
-  "productName": "WaveLogGate",
-  "description": "Gateway for connecting WSJT-* and FLRig to Wavelog",
+  "name": "wavelog-hamlib-gate",
+  "productName": "WaveLogHamlibGate",
+  "description": "Gateway for connecting WSJT-* and HAMLib to Wavelog",
   "keywords": [],
   "main": "./main.js",
-  "version": "1.1.12",
-  "author": "DJ7NT",
+  "version": "1.0.0",
+  "author": "CS8ABG",
   "scripts": {
     "start": "electron-forge start",
     "rebuild-xml": "electron-rebuild -f -w xml2js",
@@ -15,26 +15,32 @@
   },
   "dependencies": {
     "@electron-forge/maker-dmg": "^7.10.2",
-    "bootstrap": "^4.6.2",
+    "@serialport/bindings-cpp": "^13.0.1",
+    "@serialport/bindings-interface": "^1.2.2",
+    "bootstrap": "^5.3.8",
+    "bootstrap-icons": "^1.13.1",
     "dgram": "^1.0.1",
     "electron-json-config": "^2.1.0",
     "electron-json-storage": "^4.6.0",
     "electron-squirrel-startup": "^1.0.1",
     "jquery": "^3.7.1",
+    "node-fetch": "^3.3.2",
     "popper.js": "^1.16.1",
+    "serialport": "^13.0.0",
     "tcadif": "^2.3.0",
+    "unzipper": "^0.12.3",
     "ws": "^8.18.3",
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.10.2",
+    "@electron-forge/cli": "^7.8.3",
     "@electron-forge/maker-deb": "^7.10.2",
     "@electron-forge/maker-rpm": "^7.10.2",
     "@electron-forge/maker-squirrel": "^7.10.2",
     "@electron-forge/maker-zip": "^7.10.2",
     "@electron-forge/plugin-auto-unpack-natives": "^7.10.2",
     "@electron-forge/publisher-github": "^7.10.2",
-    "electron": "^36.9.2",
+    "electron": "^39.2.3",
     "electron-rebuild": "^3.2.9"
   }
 }

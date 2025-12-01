@@ -1,7 +1,7 @@
 module.exports = {
 	packagerConfig: {
 		// set config executableName
-		executableName: "wlgate",
+		executableName: "wlhlgate",
 		icon: './icon',
 		asar: true,
 	},
@@ -10,8 +10,8 @@ module.exports = {
 			name: '@electron-forge/publisher-github',
 			config: {
 				repository: {
-					owner: 'wavelog',
-					name: 'WaveLogGate'
+					owner: 'CS8ABG',
+					name: 'WaveLogHamlibGate'
 				},
 				prerelease: false
 			}
@@ -21,7 +21,7 @@ module.exports = {
 	makers: [
 		{
 			name: '@electron-forge/maker-squirrel',
-			config: { icon: "./icon.png", maintainer: 'DJ7NT', loadingGif: "loading.gif", name: "WLGate_by_DJ7NT" },
+			config: { icon: "./icon.png", maintainer: 'CS8ABG', loadingGif: "loading.gif", name: "WaveLog_HAMLib_Gate", setupIcon: "./icon.ico" },
 		},
 		{
 			name: '@electron-forge/maker-dmg',
@@ -31,7 +31,7 @@ module.exports = {
 		},
 		{
 			name: '@electron-forge/maker-deb',
-			config: { "bin":"wlgate" },
+			config: { "bin":"wlhlgate" },
 			arch: ['x86','armv7l']
 		},
 	],

@@ -1,318 +1,217 @@
-# WaveLogGate - CAT and WSJT-X Bridge for WaveLog
+# Wavelog HAMLib Gateway
 
-A modern Electron-based gateway application that connects WSJT-X, FLRig, Hamlib, and other amateur radio software to WaveLog for seamless logging and radio control.
+A modern gateway application that connects **WSJT-X**, **Hamlib**, and other amateur-radio applications to **WaveLog** for seamless CAT control, real-time status updates, and automatic QSO logging.
 
-# TL;DR:
-- For CAT you'll need [FLRig](https://www.w1hkj.org/files/flrig/) or [Hamlib](https://github.com/Hamlib/Hamlib/wiki/Download) installed and connected to your Transceiver.
-- For logging QSOs from WSJT-X, you need to configure the so called "Secondary UDP Server" like shown in the picture:
-<img width="788" height="312" alt="image" src="https://github.com/user-attachments/assets/a4d005d0-8546-4ae3-99e8-89a195df9e0e" />
+This project is **based on** and **inspired by** the excellent upstream project **WaveLogGate by DJ7NT**, but rebuilt and redesigned with a **100% Hamlib-only approach**, removing all FLRig code and adding new features such as automatic Hamlib installation and multi-station support.
 
-# Alternatives
-If you want to use a lean headless-Version for CAT or QSO-Transportation, which runs on 32bit-Systems as well, try our partner-projects (no suppert for it - experimentat):
-- CAT: [WaveLogGoat](https://github.com/johnsonm/WaveLogGoat)
-- QSO-Transport: [WaveLogStoat](https://github.com/int2001/WaveLogStoat)
+---
 
-## Features
+## ✨ Features
+
+* ✔️ **Full Hamlib integration**
+* ✔️ **Automatic download & installation of the latest Hamlib release** (from [https://hamlib.github.io/](https://hamlib.github.io/))
+* ✔️ **Native rigctld management built directly into the application**
+* ✔️ **Multi-station profile support**
+* ✔️ **Modernized interface using Bootstrap 5**, with **automatic light/dark mode** based on OS theme
+* ✔️ Updated internal architecture, dependencies, and UI
+* ✔️ Simplified configuration workflow
+
+All other core WaveLogGate features—such as ADIF intake, WebSocket output, HTTP API, and real-time radio status—have been preserved, improved, or optimized.
+
+---
 
 ### Core Functionality
-- **Automatic QSO Logging**: Real-time logging from WSJT-X, FLDigi, and any software sending ADIF via UDP
-- **CAT Radio Control**: Full radio control via FLRig or Hamlib integration
-- **Dual Profile Support**: Switch between two complete configuration profiles
-- **Real-time Radio Status**: Live frequency, mode, and power status updates to WaveLog
-- **Cross-platform**: Windows, macOS, and Linux support
+
+* **Automatic QSO Logging**
+  Real-time logging from WSJT-X, Hamlib, or any software capable of sending ADIF via UDP.
+
+* **CAT Radio Control**
+  Full CAT control using Hamlib's `rigctld`. Since `rigctld` is active you can use Hamlib's NET rigctl on other software.
+
+* **Multi-Station Profile Support**
+  Easily switch between multiple station configurations.
+
+* **Real-Time Radio Status**
+  Live frequency, mode, and power information sent to WaveLog.
+
+* **Cross-Platform**
+  Works on **Windows**, **Linux**, and **macOS** (macOS not fully tested yet).
+
+* **Automatic Hamlib Setup**
+  Downloads and installs the latest Hamlib release and manages `rigctld` for you.
 
 ### Advanced Features
-- **WebSocket Server**: Real-time broadcasting of radio status changes to external clients
-- **HTTP API**: Simple frequency/mode control endpoint for external integrations
-- **Power Monitoring**: Automatic power level reporting (can be disabled if needed)
-- **Split Operation**: Support for split frequency operations
-- **ADIF Processing**: Robust ADIF and XML parsing with automatic band detection
-- **Modern UI**: Bootstrap 4-based interface with responsive design
 
-## Prerequisites
+* **WebSocket Server**
+  Real-time broadcasting of radio status to external apps or dashboards.
 
-- **WaveLog Instance**: Any WaveLog installation with HTTPS (SSL) enabled
-- **WaveLog API Key**: Generated from WaveLog right menu → API-Keys
-- **WaveLog Station ID**: Found in WaveLog right menu → Station locations
-- **Radio Control Software** (optional):
-  - FLRig for CAT control
-  - Hamlib for CAT control
-  - OR any software capable of sending ADIF via UDP
-- **WSJT-X** (optional): For automatic digital mode logging
+* **HTTP API**
+  Simple control endpoint for integrations:
 
-## Installation
+  ```
+  http://localhost:54321/{frequency}/{mode}
+  ```
 
-### Download Pre-built Binaries
-1. Download the latest release from the [WaveLogGate GitHub repository](https://github.com/wavelog/WaveLogGate/releases)
-2. Run the installer for your platform:
-   - **Windows**: Run the `.exe` installer
-   - **macOS**: Copy the `.app` file to Applications folder
-   - **Linux**: Install the `.deb` package or extract the AppImage
+* **Split Operation**
+  Supports split TX/RX operation.
 
-### Apple Silicon Mac Users
-Due to macOS security restrictions for unsigned apps:
+* **ADIF & XML Processing**
+  Robust parsing with automatic band detection.
 
-```bash
-# After copying to Applications folder
-xattr -d com.apple.quarantine /Applications/WaveLogGate.app
-```
+* **Modern Bootstrap 5 UI**
+  Responsive, clean, and follows OS dark/light theme automatically.
 
-## Configuration
+---
 
-### Basic Setup
-1. **Launch WaveLogGate**
-2. **Enter WaveLog Details**:
-   - **WaveLog URL**: Full URL including `/index.php` (e.g., `https://your-wavelog.com/index.php`)
-   - **API Key**: From WaveLog right menu → API-Keys
-   - **Station ID**: From WaveLog right menu → Station locations (click the small badge)
-3. **Configure Radio Control** (optional):
-   - Select radio type: FLRig, Hamlib, or None
-   - Enter host and port (default: 127.0.0.1 and appropriate port)
-   - Enable/disable mode control and power monitoring
-4. **Test Configuration**: Click the "Test" button - it turns green if successful
-5. **Save Settings**: Click "Save" to persist your configuration
+## 📦 Prerequisites
 
-### Radio Configuration Options
+* **WaveLog Instance** (HTTPS required)
+* **WaveLog API Key**
+  → WaveLog right menu → API-Keys
+* **WaveLog Station ID**
+  → WaveLog right menu → Station Locations
+* **Hamlib**
+  * Automatically handled by the application
+  * Or you may use an existing rigctld instance
+* **WSJT-X** (optional)
+  For automatic digital-mode logging
 
-#### FLRig Setup
-- **Host**: Usually `127.0.0.1` if running locally
-- **Port**: Default `12345`
-- **Mode Control**: Enable to let WaveLogGate set radio modes automatically
+---
 
-#### Hamlib Setup
-- **Host**: Usually `127.0.0.1` if running locally
-- **Port**: Default `4532`
-- **Mode Control**: Enable to let WaveLogGate set radio modes automatically
-- **Ignore Power**: Check if your radio doesn't report power correctly
-
-### Profile Management
-WaveLogGate supports two complete configuration profiles:
-- Click the profile toggle button (1/2) to switch between profiles
-- Each profile maintains independent WaveLog and radio settings
-- Useful for multiple stations or operating locations
-
-## Software Integration
-
-### WSJT-X Setup
-1. Open WSJT-X Settings → Reporting
-2. **Enable "Secondary UDP Server"**
-3. Set UDP port to **2333**
-4. **Important**: Do NOT set the main "UDP Server" to port 2333
-
-### FLDigi Setup
-Configure FLDigi to send ADIF logs via UDP to port 2333.
-
-### Hamlib Setup
-
-#### Quickstart - e.g. - for Icom IC-7300 
-In general have a look at the [pages/wiki](https://github.com/Hamlib/Hamlib) for hamlib / rigctld
-As an example for Icom transceivers like the IC-7300, you can use `rigctld` (Hamlib daemon) to provide CAT control:
-
-1. **Install Hamlib** (if not already installed):
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get install hamlib-utils
-   # macOS
-   brew install hamlib
-   # Windows
-   # Download from https://github.com/Hamlib/Hamlib/releases
-   ```
-
-2. **Start rigctld for IC-7300**:
-   ```bash
-   # Basic configuration for IC-7300 on USB serial port
-   rigctld -m 306 -r /dev/ttyUSB0 -s 38400 -T localhost -t 4532
-
-   # Windows example (replace COM3 with your actual port)
-   rigctld.exe -m 306 -r COM3 -s 38400 -T localhost -t 4532
-   ```
-
-   **Parameters explained**:
-   - `-m 306`: Model number for - e.g. - Icom IC-7300 (use `rigctl -l` to see all models)
-   - `-r /dev/ttyUSB0`: Serial port device (adjust for your setup / on Windows its COMx)
-   - `-s 38400`: Serial baud rate (IC-7300 default is 38400)
-   - `-T localhost`: TCP host for rigctld daemon
-   - `-t 4532`: TCP port for rigctld daemon (default WaveLogGate Hamlib port)
-
-3. **Configure WaveLogGate**:
-   - Radio type: **Hamlib**
-   - Host: `127.0.0.1`
-   - Port: `4532` (must match rigctld port)
-
-#### Common Hamlib Model Numbers
-- **Icom IC-7300**: `306`
-- **Icom IC-705**: `439`
-- **Icom IC-7610**: `378`
-- **Yaesu FT-891**: `161`
-- **Yaesu FT-991A**: `146`
-
-#### Troubleshooting Hamlib
-```bash
-# List all supported radios
-rigctl -l
-
-# Test connection (run after rigctld is running)
-rigctl -m 306 -r /dev/ttyUSB0 get_freq
-```
-
-**Important**: `rigctld` must remain running in the background for WaveLogGate to control your radio.
-
-### WaveLog Integration
-1. **For Live QSOs**: Open WaveLog Live Logging → Radio tab → Select "WLGate"
-2. **For Manual QSOs**: In Stations tab, select "WLGate" as radio
-3. **Bandmap Control**: Click spots in WaveLog bandmap to automatically QSY your radio
-
-## API and Integration
-
-### HTTP API
-**Endpoint**: `http://localhost:54321/{frequency}/{mode}`
-
-Example:
-```bash
-# Set radio to 7.155 MHz LSB
-curl http://localhost:54321/7155000/LSB
-```
-
-### WebSocket Server
-**Port**: `54322`
-**Protocol**: WebSocket
-
-Real-time radio status updates:
-```javascript
-const ws = new WebSocket('ws://localhost:54322');
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (data.type === 'radio_status') {
-        console.log(`Frequency: ${data.frequency}, Mode: ${data.mode}`);
-    }
-};
-```
+## ⚙️ Installation
 
 
-## Advanced Settings
+1. Download the latest release from the project’s GitHub Releases page.
 
-Access advanced settings by pressing **Ctrl+Shift+D** in the configuration window:
+2. Install or extract the application for your platform:
 
-- **Force Hamlib**: Override FLRig and use Hamlib instead
-- **Disable Power Transfer**: Stop sending power readings to WaveLog
-- **Debug Options**: Additional logging and troubleshooting options
+   * **Windows**: Installer or ZIP
+   * **Linux**: AppImage, DEB, or binary
 
-**Note**: Advanced settings are in beta - restart the application after changes to ensure they're applied correctly.
+3. Launch **Wavelog HAMLib Gateway**.
 
-### Special: Tiling Window Managers like i3 or Hyprland
+4. On first run, you must select **Download Latest Hamlib** button to **download and install Hamlib**.
 
-With tiling window managers the window will be at it's fixed size which is usually okay for the normal user. In tiling WM this doesn't work properly. To fix that you can allow the window to resize by setting a env variable. This will only affect a handful of users and they will know how to handle it.
+5. Add and setup a new station on the **settings**.
+
+---
+
+## 🛠 Configuration
+
+### 1. WaveLog Settings
+
+Enter:
+
+* Full WaveLog URL (sometimes including `/index.php`)
+* API Key
+* Station ID
+* Use the **Test** button to verify connectivity.
+* CAT URL (Custom callback URL)
+Changing the callback URL for a radio might disrupt normal work of other application (like WavelogGate).
+
+### 2. Radio Settings
+
+Choose:
+
+* Manufacturer
+* Model
+* CI-V (if is a Icom radio)
+* CAT Serial Port
+* Baudrate
+* Poll (be carefull on this one)
+
+* External PTT (Hamlib: Some side effects of this command are that when type is set to DTR or RTS, read PTT state comes from the Hamlib frontend, not read from the radio.)
+* External PTT Serial Port
+* External PTT Serial Port Pin
+
+* Auto-Start Hamlib (this autostarts rigctld when the station is active)
+
+### 3. Save Station & go Back
+
+### 4. Active Station
+
+* Choose your active station from the Station List table
+
+### 5. WSJT-X Setup (optional)
+
+In **Settings → Reporting**:
+
+* Enable **Secondary UDP Server**
+* Set port to **2333**
+
+
+---
+
+## 🌐 Ports Used
+
+| Port                | Protocol                          | Purpose |
+| ------------------- | --------------------------------- | ------- |
+| **2333/UDP**        | ADIF input from WSJT-X and others |         |
+| **54321/HTTP**      | Frequency/mode control API        |         |
+| **54322/WebSocket** | Real-time radio status            |         |
+| **4532**            | Default Hamlib rigctld port       |         |
+
+---
+
+## 🧪 Development
+
+### Requirements
+
+* Node.js (v16+ recommended)
+* Git
+
+### Setup
 
 ```bash
-export WLGATE_RESIZABLE=true
-./path_to_your_bin
-```
-
-## Development
-
-### Prerequisites
-- Node.js (v14+) or Bun
-- Git
-
-### Setup Development Environment
-```bash
-# Clone repository
-git clone https://github.com/wavelog/WaveLogGate.git
-cd WaveLogGate
-
-# Install dependencies
+git clone https://github.com/CS8ABG/wavelog-hamlib-gateway.git
+cd wavelog-hamlib-gateway
 npm install
-# or with bun
-bun install
-
-# Start development mode
 npm start
-# or with bun
-bun start
+```
 
-# Build application
+### Build
+
+```bash
 npm run make
 ```
 
-### Development Notes
-- Configuration stored in application data directory
-- Debug console available in development mode
-- Single instance enforcement (only one can run at a time)
+---
 
-## Network Ports
+## 🐞 Troubleshooting
 
-- **2333/UDP**: WSJT-X and ADIF log reception
-- **54321/HTTP**: Frequency/mode control API
-- **54322/WebSocket**: Real-time radio status broadcasting
-- **12345**: Default FLRig port (if used)
-- **4532**: Default Hamlib port (if used)
+### ▶ No radio connection
 
-## Troubleshooting
+* Ensure rigctld is running or let the app manage it.
+* Verify correct rig model.
+* Check network or serial permissions (Linux: add user to `dialout` group).
 
-### Common Issues
+### ▶ No QSOs logged
 
-#### Port Conflicts
-- Ensure ports 2333, 54321, and 54322 are not blocked
-- Stop other applications using these ports
-- Application shows clear error messages for port conflicts
+* Confirm WSJT-X "Secondary UDP Server" is enabled on port **2333**.
 
-#### Radio Connection Issues
-- Verify FLRig/Hamlib is running and accessible
-- Check host/port configuration matches your radio control software
-- Test connectivity using the "Test" button in WaveLogGate
+### ▶ WaveLog errors
 
-#### WaveLog Connection Issues
-- Verify WaveLog URL is correct and accessible
-- Check API key is valid and not expired
-- Ensure Station ID exists in your WaveLog instance
-- HTTPS must be enabled on WaveLog
+* Check API key validity.
+* Ensure HTTPS is used.
+* Confirm Station ID.
 
-#### Linux Specific Issues
-- Some distributions may need additional libraries:
-  ```bash
-  # For Raspberry Pi or some Linux distributions
-  sudo apt-get install libasound2-dev
-  ```
-  See [DB4SCW's guide](https://www.db4scw.de/getting-waveloggate-to-run-on-the-raspberry-pi/) for detailed Raspberry Pi setup.
+---
 
-#### macOS Apple Silicon Issues
-If the app won't start on Apple Silicon Mac:
-```bash
-xattr -d com.apple.quarantine /Applications/WaveLogGate.app
-```
+## 🤝 Acknowledgements
 
-### Debug Information
-- Check the application log for detailed error messages
-- Use Ctrl+Shift+D to access advanced settings
-- In development mode, use the browser console for debugging
+This project is **heavily inspired by**
+**WaveLogGate by DJ7NT**
+[https://github.com/wavelog/WaveLogGate](https://github.com/wavelog/WaveLogGate)
 
-## Contributing
+Many concepts, workflows, and ideas originate from the original project.
+This fork/derivative exists to provide a **Hamlib-only**, modernized, simplified alternative.
 
-Contributions are welcome! Please:
+---
 
-1. Fork the repository
-2. Create a feature branch
-3. **Submit pull requests to the `dev` branch only**
-4. Follow the existing code style
-5. Test changes across platforms if possible
+## 📜 License
 
-### Notable Contributors
-- [gotoradio](https://github.com/gotoradio)
-- [Northrup](https://github.com/northrup)
-- [Frédéric (ON4PFD)](https://github.com/fred-corp)
+Distributed under the same license model as the original WaveLogGate project.
+See the included **LICENSE** file for details.
 
-## Version History
+---
 
-- **v1.1.x**: Current stable version with full WebSocket support and dual profiles
-- **v1.0.x**: Basic FLRig and WSJT-X integration
-- Earlier versions: Limited feature set
-
-## License
-
-This project is licensed under the terms specified in the [LICENSE](LICENSE) file.
-
-## Support
-
-- **Issues**: Report via [GitHub Issues](https://github.com/wavelog/WaveLogGate/issues)
-- **Documentation**: See additional README files in the repository for specific features
-- **WaveLog**: [WaveLog Website](https://wavelog.org/) for logging system support

@@ -5,12 +5,12 @@ const http = require('http');
 const xml = require("xml2js");
 const net = require('net');
 const WebSocket = require('ws');
+const udp = require('dgram');
+const storage = require('electron-json-storage');
 
-// In some cases we need to make the WLgate window resizable (for example for tiling window managers)
-// Default: false
-const resizable = process.env.WLGATE_RESIZABLE === 'true' || false;
-
+const resizable = process.env.RESIZABLE === 'true' || false;
 const gotTheLock = app.requestSingleInstanceLock();
+const hamlib = require('./hamlib');
 
 let powerSaveBlockerId;
 let s_mainWindow;
@@ -21,40 +21,37 @@ var WServer;
 let wsServer;
 let wsClients = new Set();
 let isShuttingDown = false;
-let activeConnections = new Set(); // Track active TCP connections
-let activeHttpRequests = new Set(); // Track active HTTP requests for cancellation
+let activeConnections = new Set(); 
+let activeHttpRequests = new Set();
 
-const DemoAdif='<call:5>DJ7NT <gridsquare:4>JO30 <mode:3>FT8 <rst_sent:3>-15 <rst_rcvd:2>33 <qso_date:8>20240110 <time_on:6>051855 <qso_date_off:8>20240110 <time_off:6>051855 <band:3>40m <freq:8>7.155783 <station_callsign:5>TE1ST <my_gridsquare:6>JO30OO <eor>';
+const DemoAdif='<call:5>N0CALL <gridsquare:4>HM77 <mode:3>FT4 <rst_sent:3>-12 <rst_rcvd:2>10 <qso_date:8>20250101 <time_on:6>123059 <qso_date_off:8>20250101 <time_off:6>123059 <band:3>160m <freq:8>1.800100 <station_callsign:5>TE1ST <my_gridsquare:6>HM77OO <eor>';
 
 if (require('electron-squirrel-startup')) app.quit();
 
-const udp = require('dgram');
-
-let q={};
 let defaultcfg = {
-	wavelog_url: "https://log.jo30.de/index.php",
-	wavelog_key: "mykey",
+	wavelog_url: "https://wavelog.server/index.php",
+	wavelog_key: "my-api-key",
 	wavelog_id: "0",
-	wavelog_radioname: 'WLGate',
-	wavelog_pmode: true,
-	flrig_host: '127.0.0.1',
-	flrig_port: '12345',
-	flrig_ena: false,
-	hamlib_host: '127.0.0.1',
-	hamlib_port: '4532',
-	hamlib_ena: false,
-	ignore_pwr: false,
+	wavelog_radioname: 'Station',
+	wavelog_cat_url: 'http://127.0.0.1:54321',
+	trx_poll: 1000,
+	hamlib_model: 'none',
+	hamlib_com: 'none',
+	hamlib_baud: '9600',
+	hamlib_civ: ' ',
+	hamlib_extptt: false,
+	hamlib_ptt_com: 'none',
+	hamlib_ptt_type: 'RTS',
+	hamlib_autostart: false,
 }
-
-const storage = require('electron-json-storage');
 
 app.disableHardwareAcceleration(); 
 
 function createWindow () {
 	const mainWindow = new BrowserWindow({
-		width: 430,
-		height: 250,
-		resizable: resizable, // Default: false, can be overwritten with WLGATE_RESIZABLE
+		width: 525,
+		height: 790,
+		resizable: resizable, // Default: false, can be overwritten with RESIZABLE
 		autoHideMenuBar: app.isPackaged,
 		webPreferences: {
 			contextIsolation: false,
@@ -69,13 +66,19 @@ function createWindow () {
 		mainWindow.setMenu(null);
 	}
 
-
 	mainWindow.loadFile('index.html')
 	mainWindow.setTitle(require('./package.json').name + " V" + require('./package.json').version);
 
 	return mainWindow;
 }
 
+//HAMLIB: Handlers
+ipcMain.handle("hamlib_download", async () => { return await hamlib.hamlib_download();});
+ipcMain.handle("hamlib_get_version", async () => { return await hamlib.hamlib_get_version();});
+ipcMain.handle("hamlib_list", async () => { return await hamlib.hamlib_list();});
+ipcMain.handle("hamlib_start_rigctld", async (_event, opts) => { return await hamlib.hamlib_start_rigctld(opts);});
+ipcMain.handle("hamlib_stop", async () => { return await hamlib.hamlib_stop();});
+ipcMain.handle("hamlib_get_serialports", async () => { return await hamlib.hamlib_get_serialports();});
 
 ipcMain.on("set_config", async (event,arg) => {
 	defaultcfg=arg;
@@ -89,28 +92,37 @@ ipcMain.on("resize", async (event,arg) => {
 	const newsize=arg;
 	s_mainWindow.setContentSize(newsize.width,newsize.height,newsize.ani);
 	s_mainWindow.setSize(newsize.width,newsize.height,newsize.ani);
+	s_mainWindow.center();
 	event.returnValue=true;
 });
 
-ipcMain.on("get_config", async (event, arg) => {
-	let storedcfg = storage.getSync('basic');
-	let realcfg={};
-	if (!(storedcfg.wavelog_url) && !(storedcfg.profiles)) { storedcfg=defaultcfg; }	// Old config not present, add default-cfg
-	if (!(storedcfg.profiles)) {	// Old Config without array? Convert it
-		(realcfg.profiles = realcfg.profiles || []).push(storedcfg);
-		realcfg.profiles.push(defaultcfg);
-		realcfg.profile=(storedcfg.profile ?? 0);
-	} else {
-		realcfg=storedcfg;
-	}
-	if ((arg ?? '') !== '') {
-		realcfg.profile=arg;
-	}
-	defaultcfg=realcfg;
-	storage.set('basic', realcfg, function(e) {	// Store one time
-		if (e) throw e;
-	});
-	event.returnValue = realcfg;
+ipcMain.on("get_config", (event, arg) => {
+    let storedcfg;
+
+    try {
+        storedcfg = storage.getSync('basic');
+    } catch (e) {
+        storedcfg = {};
+    }
+
+    let realcfg = {};
+
+    if (!storedcfg.wavelog_url && !storedcfg.profiles) {
+        realcfg = defaultcfg;
+    } else if (!storedcfg.profiles) {
+        realcfg.profiles = [storedcfg, defaultcfg];
+        realcfg.profile = storedcfg.profile ?? 0;
+    } else {
+        realcfg = storedcfg;
+    }
+
+    if (arg !== undefined && arg !== '') {
+        realcfg.profile = arg;
+    }
+
+    defaultcfg = realcfg;
+
+    event.returnValue = realcfg;
 });
 
 ipcMain.on("setCAT", async (event,arg) => {
@@ -126,94 +138,101 @@ ipcMain.on("quit", async (event,arg) => {
 });
 
 ipcMain.on("radio_status_update", async (event,arg) => {
-	// Broadcast radio status updates from renderer to WebSocket clients
 	broadcastRadioStatus(arg);
 	event.returnValue=true;
 });
 
-function cleanupConnections() {
-    console.log('Cleaning up active TCP connections...');
-
-    // Close all tracked TCP connections
-    activeConnections.forEach(connection => {
-        try {
-            if (connection && !connection.destroyed) {
-                connection.destroy();
-                console.log('Closed TCP connection');
-            }
-        } catch (error) {
-            console.error('Error closing TCP connection:', error);
-        }
-    });
-
-    // Clear the connections set
-    activeConnections.clear();
-    console.log('All TCP connections cleaned up');
-
-    // Abort all in-flight HTTP requests
-    activeHttpRequests.forEach(request => {
-        try {
-            request.abort();
-            console.log('Aborted HTTP request');
-        } catch (error) {
-            console.error('Error aborting HTTP request:', error);
-        }
-    });
-
-    // Clear the HTTP requests set
-    activeHttpRequests.clear();
-    console.log('All HTTP requests aborted');
-}
-
 function shutdownApplication() {
-    if (isShuttingDown) {
-        console.log('Shutdown already in progress, ignoring duplicate request');
-        return;
-    }
-
+    if (isShuttingDown) return;
     isShuttingDown = true;
+
     console.log('Initiating application shutdown...');
 
     try {
-        // Signal renderer to clear timers and connections
+        if (powerSaveBlocker.isStarted(powerSaveBlockerId)) {
+            powerSaveBlocker.stop(powerSaveBlockerId);
+            console.log('Power save blocker stopped.');
+        }
+    } catch (e) {
+        console.error('Error stopping power save blocker:', e);
+    }
+
+    try {
         if (s_mainWindow && !s_mainWindow.isDestroyed()) {
-            console.log('Sending cleanup signal to renderer...');
             s_mainWindow.webContents.send('cleanup');
+            console.log('Sent cleanup signal to renderer.');
         }
+    } catch (e) {
+        console.error('Error sending cleanup to renderer:', e);
+    }
 
-        // Clean up TCP connections
-        cleanupConnections();
+    try {
+        hamlib.hamlib_stop();
+        console.log('Hamlib rig stopped.');
+    } catch (e) {
+        console.error('Error stopping Hamlib:', e);
+    }
 
-        // Close all servers
+    activeConnections.forEach(conn => {
+        try {
+            if (conn && !conn.destroyed) conn.destroy();
+        } catch (e) {
+            console.error('Error closing TCP connection:', e);
+        }
+    });
+    activeConnections.clear();
+    console.log('All TCP connections closed.');
+
+    activeHttpRequests.forEach(req => {
+        try {
+            req.abort();
+        } catch (e) {
+            console.error('Error aborting HTTP request:', e);
+        }
+    });
+    activeHttpRequests.clear();
+    console.log('All HTTP requests aborted.');
+
+    try {
         if (WServer) {
-            console.log('Closing UDP server...');
-            WServer.close();
+            WServer.close(() => console.log('UDP server closed.'));
         }
+    } catch (e) {
+        console.error('Error closing UDP server:', e);
+    }
+
+    try {
         if (httpServer) {
-            console.log('Closing HTTP server...');
-            httpServer.close();
+            httpServer.close(() => console.log('HTTP server closed.'));
         }
+    } catch (e) {
+        console.error('Error closing HTTP server:', e);
+    }
+
+    try {
         if (wsServer) {
-            console.log('Closing WebSocket server and clients...');
-            // Close all WebSocket client connections
             wsClients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.close();
+                try {
+                    if (client.readyState === WebSocket.OPEN) client.close();
+                } catch (e) {
+                    console.error('Error closing WebSocket client:', e);
                 }
             });
             wsClients.clear();
-            wsServer.close();
+            wsServer.close(() => console.log('WebSocket server closed.'));
         }
-    } catch (error) {
-        console.error('Error during server shutdown:', error);
+    } catch (e) {
+        console.error('Error closing WebSocket server:', e);
     }
+
+    console.log('Shutdown complete.');
 }
 
 function show_noti(arg) {
 	if (Notification.isSupported()) {
 		try {
 			const notification = new Notification({
-				title: 'Wavelog',
+				title: 'Wavelog Gateway',
 				body: arg
 			});
 			notification.show();
@@ -278,7 +297,7 @@ if (!gotTheLock) {
 		});
 		s_mainWindow.webContents.once('dom-ready', function() {
 			if (msgbacklog.length>0) {
-				s_mainWindow.webContents.send('updateMsg',msgbacklog.pop());
+				s_mainWindow.webContents.send('serviceStatus',msgbacklog);
 			}
 		});
 	});
@@ -298,23 +317,16 @@ function normalizeTxPwr(adifdata) {
 		const cleanValue = value.trim().toLowerCase();
 		
 		const numMatch = cleanValue.match(/^(\d+(?:\.\d+)?)/);
-		if (!numMatch) return match; // not a valid number, return original match
+		if (!numMatch) return match;
 		
 		let watts = parseFloat(numMatch[1]);
 		
-		// get the unit if present
 		if (cleanValue.includes('kw')) {
 			watts *= 1000;
 		} else if (cleanValue.includes('mw')) {
 			watts *= 0.001;
 		}
-		// if it's just 'w' we assume it's already in watts
-		// would be equal to
-		// } else if (cleanValue.includes('w')) {
-		// 	watts *= 1;
-		// }
-		
-		// get the new length and return the new TX_PWR tag
+
 		const newValue = watts.toString();
 		return `<TX_PWR:${newValue.length}>${newValue}`;
 	});
@@ -323,9 +335,8 @@ function normalizeTxPwr(adifdata) {
 function normalizeKIndex(adifdata) {
 	return adifdata.replace(/<K_INDEX:(\d+)>([^<]+)/gi, (match, length, value) => {
 		const numValue = parseFloat(value.trim());
-		if (isNaN(numValue)) return ''; // Remove if not a number
+		if (isNaN(numValue)) return ''; 
 		
-		// Round to nearest integer and clamp to 0-9 range
 		let kIndex = Math.round(numValue);
 		if (kIndex < 0) kIndex = 0;
 		if (kIndex > 9) kIndex = 9;
@@ -337,8 +348,6 @@ function normalizeKIndex(adifdata) {
 function manipulateAdifData(adifdata) {
 	adifdata = normalizeTxPwr(adifdata);
 	adifdata = normalizeKIndex(adifdata);
-	// add more manipulation if necessary here
-	// ...
 	return adifdata;
 }
 
@@ -405,13 +414,13 @@ function send2wavelog(o_cfg,adif, dryrun = false) {
 			const body = [];
 			res.on('data', (chunk) => body.push(chunk));
 			res.on('end', () => {
-				// Remove request from tracking when completed
+
 				activeHttpRequests.delete(req);
 
 				let resString = Buffer.concat(body).toString();
 				if (rej) {
 					if (resString.indexOf('html>')>0) {
-						resString='{"status":"failed","reason":"wrong URL"}';
+						resString='{"status":"failed","reason":"Wrong WaveLog URL"}';
 					}
 					result.resString=resString;
 					reject(result);
@@ -423,16 +432,14 @@ function send2wavelog(o_cfg,adif, dryrun = false) {
 		})
 
 		req.on('error', (err) => {
-			// Remove request from tracking on error
 			activeHttpRequests.delete(req);
 			rej=true;
 			req.destroy();
-			result.resString='{"status":"failed","reason":"internet problem"}';
+			result.resString='{"status":"failed","reason":"Check your WaveLog URL / no connection"}';
 			reject(result);
 		})
 
 		req.on('timeout', (err) => {
-			// Remove request from tracking on timeout
 			activeHttpRequests.delete(req);
 			rej=true;
 			req.destroy();
@@ -440,7 +447,6 @@ function send2wavelog(o_cfg,adif, dryrun = false) {
 			reject(result);
 		})
 
-		// Track the HTTP request for cleanup
 		activeHttpRequests.add(req);
 
 		req.write(postData);
@@ -449,25 +455,26 @@ function send2wavelog(o_cfg,adif, dryrun = false) {
 
 }
 
-const ports = [2333]; // Liste der Ports, an die Sie binden möchten
+const ports = [2333];
 
 ports.forEach(port => {
 	WServer = udp.createSocket('udp4');
+	toservicestatus({service:"udp", status:"running", port:"2333"});
 	WServer.on('error', function(err) {
-		tomsg('Some other Tool blocks Port '+port+'. Stop it, and restart this');
+		toservicestatus({service:"udp", status:"blocked", reason:"Port "+port+" in use"});
 	});
 
 	WServer.on('message',async function(msg,info){
 		let parsedXML={};
 		let adobject={};
-		if (msg.toString().includes("xml")) {	// detect if incoming String is XML
+		if (msg.toString().includes("xml")) {
 			try {
 				xml.parseString(msg.toString(), function (err,dat) {
 					parsedXML=dat;
 				});
-				let qsodatum = new Date(Date.parse(parsedXML.contactinfo.timestamp[0]+"Z")); // Added Z to make it UTC
+				let qsodatum = new Date(Date.parse(parsedXML.contactinfo.timestamp[0]+"Z"));
 				const qsodat=fmt(qsodatum);
-				if (parsedXML.contactinfo.mode[0] == 'USB' || parsedXML.contactinfo.mode[0] == 'LSB') {	 // TCADIF lib is not capable of using USB/LSB
+				if (parsedXML.contactinfo.mode[0] == 'USB' || parsedXML.contactinfo.mode[0] == 'LSB') {	
 					parsedXML.contactinfo.mode[0]='SSB';
 				}
 				adobject = { qsos: [
@@ -498,7 +505,7 @@ ports.forEach(port => {
 			try {
 				adobject=parseADIF(msg.toString());
 			} catch(e) {
-				tomsg('<div class="alert alert-danger" role="alert">Received broken ADIF</div>');
+				toservicestatus({service:"udp", status:"warning", reason:"Received broken ADIF"});
 				return;
 			}
 		}
@@ -534,26 +541,24 @@ ports.forEach(port => {
 				}
 				show_noti("QSO NOT added: "+adobject.qsos[0].CALL);
 			}
-			s_mainWindow.webContents.send('updateTX', adobject);
-			tomsg('');
+			toservicestatus({service:"udp", status:"received", msg: adobject});
 		} else {
-			tomsg('<div class="alert alert-danger" role="alert">No ADIF detected. WSJT-X: Use ONLY Secondary UDP-Server</div>');
+			toservicestatus({service:"udp", status:"warning", reason:"no ADIF detected. WSJT-X: Use ONLY Secondary UDP-Server"});
 		}
 	});
 	WServer.bind(port);
 });
 
-function tomsg(msg) {
-	try {
-		s_mainWindow.webContents.send('updateMsg',msg);
-	} catch(e) {
-		msgbacklog.push(msg);
-	}
+function toservicestatus(msg) { 
+    try {
+        s_mainWindow.webContents.send('serviceStatus', msg);
+    } catch (e) {
+        msgbacklog.push(msg);
+    }
 }
 
 function startserver() {
 	try {
-		tomsg('Waiting for QSO / Listening on UDP 2333');
 		httpServer = http.createServer(function (req, res) {
 			res.setHeader('Access-Control-Allow-Origin', '*');
 			res.writeHead(200, {'Content-Type': 'text/plain'});
@@ -565,18 +570,18 @@ function startserver() {
 				settrx(qrg,mode);
 			}
 		}).listen(54321);
+		toservicestatus({service:"httpserver", status:"running", port:54321});
 
-		// Start WebSocket server
 		startWebSocketServer();
 	} catch(e) {
-		tomsg('Some other Tool blocks Port 2333 or 54321. Stop it, and restart this');
+		toservicestatus({service:"httpserver", status:"blocked", reason:"Port 54321 in use"});
 	}
 }
 
 function startWebSocketServer() {
 	try {
 		wsServer = new WebSocket.Server({ port: 54322, exclusive: true });
-
+		toservicestatus({service:"websocketserver", status:"running", port:54322});
 		wsServer.on('connection', (ws) => {
 			wsClients.add(ws);
 			console.log('WebSocket client connected');
@@ -588,9 +593,9 @@ function startWebSocketServer() {
 			ws.on('error', (error) => {
 				console.error('WebSocket error:', error);
 				wsClients.delete(ws);
+
 			});
 
-			// Send current radio status on connection
 			ws.send(JSON.stringify({
 				type: 'welcome',
 				message: 'Connected to WaveLogGate WebSocket server'
@@ -600,10 +605,12 @@ function startWebSocketServer() {
 
 		wsServer.on('error', (error) => {
 			console.error('WebSocket server error:', error);
+			toservicestatus({service:"websocketserver", status:"error", reason:error.message});
 		});
 
 	} catch(e) {
 		console.error('WebSocket server startup error:', e);
+		toservicestatus({service:"websocketserver", status:"blocked", reason:"Port 54322 in use"});
 	}
 }
 
@@ -615,9 +622,9 @@ function broadcastRadioStatus(radioData) {
 		mode: radioData.mode || null,
 		power: radioData.power || null,
 		radio: radioData.radio || 'wlstream',
+		cat_url: radioData.cat_url || 'http://127.0.0.1:54321',
 		timestamp: Date.now()
 	};
-	// Only include frequency_rx if it's not null
 	if (radioData.frequency_rx) {
 		message.frequency_rx = parseInt(radioData.frequency_rx);
 	}
@@ -630,7 +637,6 @@ function broadcastRadioStatus(radioData) {
 	});
 }
 
-
 async function get_modes() {
 	return new Promise((resolve) => {
 		ipcMain.once('get_info_result', (event, modes) => {
@@ -641,7 +647,7 @@ async function get_modes() {
 }
 
 function getClosestMode(requestedMode, availableModes) {
-	if (availableModes.includes(requestedMode)) {	// Check perfect matches
+	if (availableModes.includes(requestedMode)) {
 		return requestedMode;
 	}
 
@@ -683,95 +689,23 @@ async function settrx(qrg, mode = '') {
 			to.mode='USB';
 		}
 	}
-	if (defaultcfg.profiles[defaultcfg.profile ?? 0].flrig_ena) {
-		let url="http://"+defaultcfg.profiles[defaultcfg.profile ?? 0].flrig_host+':'+defaultcfg.profiles[defaultcfg.profile ?? 0].flrig_port+'/';
-		let postData='';
-		let options={};
-		let x;
+	
+	const client = net.createConnection({ host: '127.0.0.1', port: 4532 }, () => {
+		client.write("F " + to.qrg + "\n");
+		client.write("M " + to.mode + "\n-1");
+		client.end();
+	});
 
-		if (defaultcfg.profiles[defaultcfg.profile ?? 0].wavelog_pmode) {
-			postData= '<?xml version="1.0"?>';
-			postData+='<methodCall><methodName>rig.set_modeA</methodName><params><param><value>' + to.mode + '</value></param></params></methodCall>';
-			options = {
-				method: 'POST',
-				headers: {
-					'User-Agent': 'SW2WL_v' + app.getVersion(),
-					'Content-Length': postData.length
-				}
-			};
-			x=await httpPost(url,options,postData);
-		}
+	activeConnections.add(client);
 
-		postData= '<?xml version="1.0"?>';
-		postData+='<methodCall><methodName>main.set_frequency</methodName><params><param><value><double>' + to.qrg + '</double></value></param></params></methodCall>';
-		options = {
-			method: 'POST',
-			headers: {
-				'User-Agent': 'SW2WL_v' + app.getVersion(),
-				'Content-Length': postData.length
-			}
-		};
-		x=await httpPost(url,options,postData);
-
-	}
-
-	if (defaultcfg.profiles[defaultcfg.profile ?? 0].hamlib_ena) {
-		const client = net.createConnection({ host: defaultcfg.profiles[defaultcfg.profile ?? 0].hamlib_host, port: defaultcfg.profiles[defaultcfg.profile ?? 0].hamlib_port }, () => {
-			client.write("F " + to.qrg + "\n");
-			if (defaultcfg.profiles[defaultcfg.profile ?? 0].wavelog_pmode) {
-				client.write("M " + to.mode + "\n-1");
-			}
-			client.end();
-		});
-
-		// Track the connection for cleanup
-		activeConnections.add(client);
-
-		client.on("error", (err) => {
-			activeConnections.delete(client);
-		});
-		client.on("close", () => {
-			activeConnections.delete(client);
-		});
-	}
-
-	// Broadcast frequency/mode change to WebSocket clients
+	client.on("error", (err) => {
+		activeConnections.delete(client);
+	});
+	client.on("close", () => {
+		activeConnections.delete(client);
+	});
 
 	return true;
-}
-
-function httpPost(url,options,postData) {
-	return new Promise((resolve, reject) => {
-		let rej=false;
-		let result={};
-		const req = http.request(url,options, (res) => {
-			let body=[];
-			res.on('data', (chunk) => body.push(chunk));
-			res.on('end', () => {
-				const resString = Buffer.concat(body).toString();
-				if (rej) {
-					reject(resString);
-				} else {
-					resolve(resString);
-				}
-			})
-		})
-
-		req.on('error', (err) => {
-			req.destroy();
-			result.resString='Other Problem';
-			reject(result.resString);
-		})
-
-		req.on('timeout', (err) => {
-			req.destroy();
-			result.resString='Timeout';
-			reject(result.resString);
-		})
-
-		req.write(postData);
-		req.end();
-	});
 }
 
 function fmt(spotDate) {

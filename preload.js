@@ -1,11 +1,8 @@
-// All of the Node.js APIs are available in the preload process.
-// It has the same sandbox as a Chrome extension.
-const { contextBridge, ipcRenderer } = require('electron/renderer')
+//const { contextBridge, ipcRenderer } = require('electron/renderer');
+//const { on } = require('ws');
+const { ipcRenderer } = require('electron');
 
-window.TX_API = {
-  onUpdateTX: (callback) => ipcRenderer.on('updateTX', (_event, value) => callback(value)),
-  onUpdateMsg: (callback) => ipcRenderer.on('updateMsg', (_event, value) => callback(value))
-};
+window.TX_API = { onServiceStatus: (callback) => ipcRenderer.on('serviceStatus', (_event, value) => callback(value))};
 
 window.addEventListener('DOMContentLoaded', () => {
   const replaceText = (selector, text) => {
@@ -18,3 +15,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 })
 
+window.HAMLIB_API = {
+  downloadHamlib: () => ipcRenderer.invoke('hamlib_download'),
+  getHamlibVersion: () => ipcRenderer.invoke('hamlib_get_version'),
+  getRigList: () => ipcRenderer.invoke('hamlib_list'),
+  startRigctld: (opts) => ipcRenderer.invoke('hamlib_start_rigctld', opts),
+  stopHamlib: () => ipcRenderer.invoke('hamlib_stop'),
+  getSerialPorts: () => ipcRenderer.invoke('hamlib_get_serialports')
+};
